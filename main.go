@@ -13,7 +13,7 @@ import (
 const (
 	configFile  = "config.yaml"
 	initialized = false
-	CC          = "ldycc"
+	CC          = "lddcc"
 )
 
 func main() {

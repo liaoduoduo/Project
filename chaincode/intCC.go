@@ -32,13 +32,13 @@ func PutFile(stub shim.ChaincodeStubInterface, file Intelligence) ([]byte, bool)
 
 //上传情报
 //args:Intelligence结构体
-func (t *IntelligenceChaincode) addFile(stub shim.ChaincodeStubInterface,args []string) peer.Response {
+func (t *IntelligenceChaincode) addFile(stub shim.ChaincodeStubInterface, args []string) peer.Response {
 
-	if len(args) != 2{
+	if len(args) != 2 {
 		return shim.Error("给定的参数个数不符合要求")
 	}
 	var file Intelligence
-	err := json.Unmarshal([]byte(args[0]),&file)
+	err := json.Unmarshal([]byte(args[0]), &file)
 	if err != nil {
 		return shim.Error("反序列化信息时发生错误")
 	}
@@ -54,8 +54,6 @@ func (t *IntelligenceChaincode) addFile(stub shim.ChaincodeStubInterface,args []
 	return shim.Success([]byte("信息添加成功"))
 }
 
-
-
 // 根据姓名及ID查询历史情报 （溯源）
 // args: id, name
 func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeStubInterface, args []string) peer.Response {
@@ -64,7 +62,7 @@ func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeSt
 	}
 	id := args[0]
 	name := args[1]
-	queryString := fmt.Sprintf("{\"selector\":{\"ID\":\"%s\", \"Name\":\"%s\"}}", id, name)
+	queryString := fmt.Sprintf("{\"selector\":{\"EntityID\":\"%s\", \"Name\":\"%s\"}}", id, name)
 	result, err := getFileByQueryString(stub, queryString)
 	if err != nil {
 		return shim.Error("根据ID及姓名查询信息时发生错误")
@@ -73,11 +71,10 @@ func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeSt
 		return shim.Error("根据ID及姓名没有查询到相关的信息")
 	}
 
-
 	var file Intelligence
 	err = json.Unmarshal(result, &file)
 	if err != nil {
-		return  shim.Error("反序列化file信息失败")
+		return shim.Error("反序列化file信息失败")
 	}
 	iterator, err := stub.GetHistoryForKey(file.EntityID)
 	if err != nil {
@@ -101,7 +98,7 @@ func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeSt
 		if hisData.Value == nil {
 			var empty Intelligence
 			historyItem.Intelligence = empty
-		}else {
+		} else {
 			historyItem.Intelligence = hisFile
 		}
 
@@ -119,7 +116,6 @@ func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeSt
 	return shim.Success(result)
 }
 
-
 // 根据指定的查询字符串实现富查询
 func getFileByQueryString(stub shim.ChaincodeStubInterface, queryString string) ([]byte, error) {
 
@@ -127,7 +123,7 @@ func getFileByQueryString(stub shim.ChaincodeStubInterface, queryString string) 
 	if err != nil {
 		return nil, err
 	}
-	defer  resultsIterator.Close()
+	defer resultsIterator.Close()
 
 	// buffer is a JSON array containing QueryRecords
 	var buffer bytes.Buffer
@@ -154,7 +150,6 @@ func getFileByQueryString(stub shim.ChaincodeStubInterface, queryString string) 
 
 }
 
-
 func GetFileInfo(stub shim.ChaincodeStubInterface, entityID string) (Intelligence, bool) {
 	var file Intelligence
 	// 根据ID查询信息状态
@@ -177,23 +172,23 @@ func GetFileInfo(stub shim.ChaincodeStubInterface, entityID string) (Intelligenc
 	return file, true
 }
 
-// 根据ID与姓名更新情报文件
+// 根据ID更新情报文件
 // args: IntelligenceObject
 func (t *IntelligenceChaincode) updateFile(stub shim.ChaincodeStubInterface, args []string) peer.Response {
-	if len(args) != 2{
+	if len(args) != 2 {
 		return shim.Error("给定的参数个数不符合要求")
 	}
 
 	var info Intelligence
 	err := json.Unmarshal([]byte(args[0]), &info)
 	if err != nil {
-		return  shim.Error("反序列化edu信息失败")
+		return shim.Error("反序列化edu信息失败")
 	}
 
 	// 根据身份证号码查询信息
 
 	result, bl := GetFileInfo(stub, info.EntityID)
-	if !bl{
+	if !bl {
 		return shim.Error("根据ID查询信息时发生错误")
 	}
 
@@ -203,7 +198,6 @@ func (t *IntelligenceChaincode) updateFile(stub shim.ChaincodeStubInterface, arg
 	result.FileType = info.FileType
 	result.Desc = info.Desc
 	result.Company = info.Company
-
 
 	_, bl = PutFile(stub, result)
 	if !bl {
