@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>addEdu</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link href="/static/css/reset.css" rel="stylesheet">
+    <!-- Bootstrap3.3.5 CSS -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/login.css" rel="stylesheet">
+    <link href="/static/css/queryResult.css" rel="stylesheet">
+    <link href="/static/css/addEdu.css" rel="stylesheet">
+    <style>
+        .yongyin {
+            width:300px;
+            text-align:center;
+            line-height:100%;
+            padding:0.3em;
+            font:16px Arial,sans-serif bold;
+            font-style:normal;
+            text-decoration:none;
+            margin:2px;
+            vertical-align:text-bottom;
+            zoom:1;
+            outline:none;
+            font-size-adjust:none;
+            font-stretch:normal;
+            border-radius:50px;
+            box-shadow:0px 1px 2px rgba(0,0,0,0.2);
+            text-shadow:0px 1px 1px rgba(0,0,0,0.3);
+            color:#d9edf7;
+            border:0.2px solid #2299ff;
+            background-repeat:repeat;
+            background-size:auto;
+            background-origin:padding-box;
+            background-clip:padding-box;
+            background-color:#1b6d85;
+
+        }
+
+        .yongyin:hover {
+            background: #268DFF;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="queryResule">
+        <h2>添加情报文件信息</h2>
+        <div class="back">
+            <a href="/index">返回首页</a>
+        </div>
+            <div class="ipfs" style="margin-top:10px">
+                <button type="button" class="yongyin" style="width:240px; height:30px;" onclick="window.open('http://127.0.0.1:5001/webui')">
+                    请上传情报文件获取hash
+                </button>
+            </div>
+        <form action="/addFile" method="post" name="addForm">
+            <div class="top">
+                <div class="left">
+                    <p>
+                        <span>姓名：</span>
+                        <span>
+                        <input type="text" name="Name"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='姓名'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='姓名';this.className ='input_text'}" accesskey="n" type="text" placeholder="姓名" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                    <p>
+                        <span>文件hash：</span>
+                        <span>
+                        <input type="text" name="FileHash"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='文件hash'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='文件hash';this.className ='input_text'}" accesskey="n" type="text" placeholder="文件hash" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                    <p>
+                        <span>文件描述：</span>
+                        <span>
+                        <input type="text" name="Desc"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='文件描述'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='文件描述';this.className ='input_text'}" accesskey="n" type="text" placeholder="文件描述" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                </div>
+                <div class="right">
+                    <p>
+                        <span>ID：</span>
+                        <span>
+                        <input type="text" name="EntityID"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='ID'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='ID';this.className ='input_text'}" accesskey="n" type="text" placeholder="ID" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                    <p>
+                        <span>文件类型：</span>
+                        <span>
+                        <input type="text" name="FileType"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='文件类型'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='文件类型';this.className ='input_text'}" accesskey="n" type="text" placeholder="文件类型" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                    <p>
+                        <span>所属机构：</span>
+                        <span>
+                        <input type="text" name="Company"  class="input_text" tabindex="1" onfocus="if(this.placeholder=='所属机构'){this.placeholder='';}this.className ='input_text input_text_focus'" onblur="if(this.value==''){this.placeholder='所属机构';this.className ='input_text'}" accesskey="n" type="text" placeholder="所属机构" size="25" autocomplete="off">
+                      </span>
+                    </p>
+                </div>
+            </div>
+            <input type="hidden" name="photo" id="photo" value=""/>
+            <button type="button" name="button" class="btn">上传情报文件信息</button>
+        </form>
+    </div>
+    <!-- data-backdrop="false"去除遮罩层  -->
+    <div class="modal fade bd-example-modal-sm"  id="myModal" role="dialog" data-backdrop="false"  aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <p class="text-center mb-0" style="height:42px;line-height:42px;margin:0;">
+                    <i class="fa fa-check-circle text-success mr-1" aria-hidden="true"></i>
+                    请输入情报所必需的相关信息
+                </p>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+<script type="text/javascript" src="/static/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+    $(function() {
+        var inputs = $('input[type="text"]');
+        // 提交按钮
+        $('.btn').click(function() {
+            // 如果为空 报错提示
+            for (var i = 0; i < inputs.length; i++) {
+                if (!($(inputs[i]).val())) {
+                    $(inputs[i]).addClass('redColor');
+                    $('#myModal').modal('show');
+                    setTimeout(function(){
+                        $("#myModal").modal("hide");
+                    },2000);
+                    return;
+                }
+            }
+            // 成功后提交数据
+            $("form[name='addForm']").submit()
+        })
+    })
+</script>
+</html>

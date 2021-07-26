@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>queryResule</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link href="/static/css/reset.css" rel="stylesheet">
+    <!-- Bootstrap3.3.5 CSS -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/queryResult.css" rel="stylesheet">
+  </head>
+  <body>
+  <div class="container" >
+      <div class="queryResule">
+          <h2>情报文件查询结果</h2>
+          {{if .History}}
+            <div id="tableDiv">
+                <table id="table" style="margin: 0 auto;">
+                    <tr>
+                        <td>姓名</td>
+                        <td>ID</td>
+                        <td>文件hash</td>
+                        <td>文件类型</td>
+                        <td>文件描述</td>
+                        <td>所属机构</td>
+                    </tr>
+                    {{range .File.Historys}}
+                        <tr>
+                            <td>{{.Intelligence.Name}}</td>
+                            <td>{{.Intelligence.EntityID}}</td>
+                            <td>{{.Intelligence.FileHash}}</td>
+                            <td>{{.Intelligence.FileType}}</td>
+                            <td>{{.Intelligence.Desc}}</td>
+                            <td>{{.Intelligence.Company}}</td>
+                        </tr>
+                    {{end}}
+                </table>
+            </div>
+          {{end}}
+          <div class="top">
+              <div class="left">
+                  <p>
+                      <span>姓名：</span>
+                      <span>{{.File.Name}}</span>
+                  </p>
+                  <p>
+                      <span>文件hash：</span>
+                      <span>{{.File.FileHash}}</span>
+                  </p>
+                  <p>
+                      <span>文件描述：</span>
+                      <span>{{.File.Desc}}</span>
+                  </p>
+              </div>
+              <div class="right">
+                  <p>
+                      <span>ID：</span>
+                      <span>{{.File.EntityID}}</span>
+                  </p>
+                  <p>
+                      <span>文件类型：</span>
+                      <span>{{.File.FileType}}</span>
+                  </p>
+                  <p>
+                      <span>所属机构：</span>
+                      <span>{{.File.Company}}</span>
+                  </p>
+              </div>
+
+          </div>
+          <p>
+              {{if eq .CurrentUser.IsAdmin "T"}}
+                  <a href="/modifyPage?id={{.File.EntityID}}&name={{.File.Name}}">修改信息</a>
+              {{end}}
+              <a href="/index">返回首页</a>
+          </p>
+          <div class="bottom">
+              <p><b>声明</b></p>
+              <p>1、不得将本情报用于非法用途,信息内容标注“*”号,表示该内容不详,信息如有修改,请以网站在线查询内容为准则。</p>
+              <p>2.情报查询结果仅供查询人使用，不得向外公布或与他人共享。</p>
+          </div>
+      </div>
+  </div>
+  </body>
+</html>
