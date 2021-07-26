@@ -11,25 +11,25 @@ import (
 )
 
 const (
-	configFile = "config.yaml"
+	configFile  = "config.yaml"
 	initialized = false
-	CC = "ldycc"
+	CC          = "ldycc"
 )
 
 func main() {
 	initInfo := &sdkInit.InitInfo{
 
-		ChannelID: "kevinkongyixueyuan",
-		ChannelConfig: os.Getenv("GOPATH") + "/src/Project/fixtures/artifacts/channel.tx",
+		ChannelID:     "kevinkongyixueyuan",
+		ChannelConfig: os.Getenv("GOPATH") + "/src/github.com/liaoduoduo/Project/fixtures/artifacts/channel.tx",
 
-		OrgAdmin:"Admin",
-		OrgName:"Org1",
+		OrgAdmin:       "Admin",
+		OrgName:        "Org1",
 		OrdererOrgName: "orderer.kevin.kongyixueyuan.com",
 
-		ChaincodeID: CC,
+		ChaincodeID:     CC,
 		ChaincodeGoPath: os.Getenv("GOPATH"),
-		ChaincodePath: "Project/chaincode/",
-		UserName:"User1",
+		ChaincodePath:   "github.com/liaoduoduo/Project/chaincode/",
+		UserName:        "User1",
 	}
 	sdk, err := sdkInit.SetupSDK(configFile, initialized)
 	if err != nil {
@@ -55,8 +55,8 @@ func main() {
 	//===========================================//
 
 	serviceSetup := service.ServiceSetup{
-		ChaincodeID:CC,
-		Client:channelClient,
+		ChaincodeID: CC,
+		Client:      channelClient,
 	}
 
 	file := service.Intelligence{
@@ -71,12 +71,12 @@ func main() {
 	msg, err := serviceSetup.SaveFile(file)
 	if err != nil {
 		fmt.Println(err.Error())
-	}else {
+	} else {
 		fmt.Println("信息发布成功, 交易编号为: " + msg)
 	}
 
 	// 根据证书编号与名称查询信息
-	result, err := serviceSetup.FindFileByIDAndName("123","廖多多")
+	result, err := serviceSetup.FindFileByIDAndName("123", "廖多多")
 	if err != nil {
 		fmt.Println(err.Error())
 	} else {
