@@ -8,24 +8,24 @@ import (
 )
 
 type Intelligence struct {
-	ObjectType	string	`json:"docType"`
-	Name string `json:"Name"`
-	EntityID string `json:"EntityID"`
-	FileHash string `json:"FileHash"`
-	FileType string `json:"FileType"`
-	Desc string `json:"Desc"`
-	Company string `json:"Company"`
+	ObjectType string `json:"docType"`
+	Name       string `json:"Name"`
+	EntityID   string `json:"EntityID"`
+	FileHash   string `json:"FileHash"`
+	FileType   string `json:"FileType"`
+	Desc       string `json:"Desc"`
+	Company    string `json:"Company"`
 
-	History []HistoryItem
+	Historys []HistoryItem
 }
 
 type HistoryItem struct {
-	TxId string
+	TxId         string
 	Intelligence Intelligence
 }
 type ServiceSetup struct {
-	ChaincodeID	string
-	Client	*channel.Client
+	ChaincodeID string
+	Client      *channel.Client
 }
 
 func regitserEvent(client *channel.Client, chaincodeID, eventID string) (fab.Registration, <-chan *fab.CCEvent) {

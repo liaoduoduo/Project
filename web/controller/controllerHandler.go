@@ -2,7 +2,7 @@
   @Prject: goProjects
   @Dev_Software: GoLand
   @File : controllerHandler
-  @Time : 2018/10/18 14:31 
+  @Time : 2018/10/18 14:31
   @Author : hanxiaodong
 */
 
@@ -17,20 +17,20 @@ import (
 
 var cuser User
 
-func (app *Application) LoginView(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) LoginView(w http.ResponseWriter, r *http.Request) {
 
 	ShowView(w, r, "login.html", nil)
 }
 
-func (app *Application) Index(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) Index(w http.ResponseWriter, r *http.Request) {
 	ShowView(w, r, "index.html", nil)
 }
 
-func (app *Application) Help(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) Help(w http.ResponseWriter, r *http.Request) {
 	data := &struct {
 		CurrentUser User
 	}{
-		CurrentUser:cuser,
+		CurrentUser: cuser,
 	}
 	ShowView(w, r, "help.html", data)
 }
@@ -51,16 +51,16 @@ func (app *Application) Login(w http.ResponseWriter, r *http.Request) {
 
 	data := &struct {
 		CurrentUser User
-		Flag bool
+		Flag        bool
 	}{
-		CurrentUser:cuser,
-		Flag:false,
+		CurrentUser: cuser,
+		Flag:        false,
 	}
 
 	if flag {
 		// 登录成功
 		ShowView(w, r, "index.html", data)
-	}else{
+	} else {
 		// 登录失败
 		data.Flag = true
 		data.CurrentUser.LoginName = loginName
@@ -69,35 +69,35 @@ func (app *Application) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // LoginOut 用户登出
-func (app *Application) LoginOut(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) LoginOut(w http.ResponseWriter, r *http.Request) {
 	cuser = User{}
 	ShowView(w, r, "login.html", nil)
 }
 
 // AddFileShow 显示添加信息页面
-func (app *Application) AddFileShow(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) AddFileShow(w http.ResponseWriter, r *http.Request) {
 	data := &struct {
 		CurrentUser User
-		Msg string
-		Flag bool
+		Msg         string
+		Flag        bool
 	}{
-		CurrentUser:cuser,
-		Msg:"",
-		Flag:false,
+		CurrentUser: cuser,
+		Msg:         "",
+		Flag:        false,
 	}
 	ShowView(w, r, "addFile.html", data)
 }
 
 // AddFile 添加信息
-func (app *Application) AddFile(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) AddFile(w http.ResponseWriter, r *http.Request) {
 
 	file := service.Intelligence{
-		Name:r.FormValue("Name"),
-		EntityID:r.FormValue("EntityID"),
-		FileHash:r.FormValue("FileHash"),
-		FileType:r.FormValue("FileType"),
-		Desc:r.FormValue("Desc"),
-		Company:r.FormValue("Company"),
+		Name:     r.FormValue("Name"),
+		EntityID: r.FormValue("EntityID"),
+		FileHash: r.FormValue("FileHash"),
+		FileType: r.FormValue("FileType"),
+		Desc:     r.FormValue("Desc"),
+		Company:  r.FormValue("Company"),
 	}
 
 	app.Setup.SaveFile(file)
@@ -107,21 +107,21 @@ func (app *Application) AddFile(w http.ResponseWriter, r *http.Request)  {
 	app.FindCertByNoAndName(w, r)
 }
 
-func (app *Application) QueryPage(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) QueryPage(w http.ResponseWriter, r *http.Request) {
 	data := &struct {
 		CurrentUser User
-		Msg string
-		Flag bool
+		Msg         string
+		Flag        bool
 	}{
-		CurrentUser:cuser,
-		Msg:"",
-		Flag:false,
+		CurrentUser: cuser,
+		Msg:         "",
+		Flag:        false,
 	}
 	ShowView(w, r, "query.html", data)
 }
 
 // FindCertByNoAndName 根据ID与姓名查询信息
-func (app *Application) FindCertByNoAndName(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) FindCertByNoAndName(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("EntityID")
 	name := r.FormValue("Name")
 	result, err := app.Setup.FindFileByIDAndName(id, name)
@@ -132,17 +132,17 @@ func (app *Application) FindCertByNoAndName(w http.ResponseWriter, r *http.Reque
 	fmt.Println(file)
 
 	data := &struct {
-		File service.Intelligence
+		File        service.Intelligence
 		CurrentUser User
-		Msg string
-		Flag bool
-		History bool
+		Msg         string
+		Flag        bool
+		History     bool
 	}{
-		File:file,
-		CurrentUser:cuser,
-		Msg:"",
-		Flag:false,
-		History:false,
+		File:        file,
+		CurrentUser: cuser,
+		Msg:         "",
+		Flag:        false,
+		History:     true,
 	}
 
 	if err != nil {
@@ -153,21 +153,21 @@ func (app *Application) FindCertByNoAndName(w http.ResponseWriter, r *http.Reque
 	ShowView(w, r, "queryResult.html", data)
 }
 
-func (app *Application) QueryPage2(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) QueryPage2(w http.ResponseWriter, r *http.Request) {
 	data := &struct {
 		CurrentUser User
-		Msg string
-		Flag bool
+		Msg         string
+		Flag        bool
 	}{
-		CurrentUser:cuser,
-		Msg:"",
-		Flag:false,
+		CurrentUser: cuser,
+		Msg:         "",
+		Flag:        false,
 	}
 	ShowView(w, r, "query2.html", data)
 }
 
 // ModifyShow 修改/添加新信息
-func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request)  {
+func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request) {
 	// 根据ID与姓名查询信息
 	id := r.FormValue("EntityID")
 	name := r.FormValue("Name")
@@ -177,15 +177,15 @@ func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request)  {
 	json.Unmarshal(result, &file)
 
 	data := &struct {
-		File service.Intelligence
+		File        service.Intelligence
 		CurrentUser User
-		Msg string
-		Flag bool
+		Msg         string
+		Flag        bool
 	}{
-		File:file,
-		CurrentUser:cuser,
-		Flag:true,
-		Msg:"",
+		File:        file,
+		CurrentUser: cuser,
+		Flag:        true,
+		Msg:         "",
 	}
 
 	if err != nil {
@@ -199,12 +199,12 @@ func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request)  {
 // Modify 修改/添加新信息
 func (app *Application) Modify(w http.ResponseWriter, r *http.Request) {
 	file := service.Intelligence{
-		Name:r.FormValue("Name"),
-		EntityID:r.FormValue("EntityID"),
-		FileHash:r.FormValue("FileHash"),
-		FileType:r.FormValue("FileType"),
-		Desc:r.FormValue("Desc"),
-		Company:r.FormValue("Company"),
+		Name:     r.FormValue("Name"),
+		EntityID: r.FormValue("EntityID"),
+		FileHash: r.FormValue("FileHash"),
+		FileType: r.FormValue("FileType"),
+		Desc:     r.FormValue("Desc"),
+		Company:  r.FormValue("Company"),
 	}
 
 	//transactionID, err := app.Setup.ModifyEdu(edu)

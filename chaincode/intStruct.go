@@ -10,18 +10,18 @@ package main
 */
 
 type Intelligence struct {
-	ObjectType	string	`json:"docType"`
-	Name string `json:"Name"`
-	EntityID string `json:"EntityID"`
-	FileHash string `json:"FileHash"`
-	FileType string `json:"FileType"`
-	Desc string `json:"Desc"`
-	Company string `json:"Company"`
+	ObjectType string `json:"docType"`
+	Name       string `json:"Name"`
+	EntityID   string `json:"EntityID"`
+	FileHash   string `json:"FileHash"`
+	FileType   string `json:"FileType"`
+	Desc       string `json:"Desc"`
+	Company    string `json:"Company"`
 
-	History []HistoryItem
+	Historys []HistoryItem
 }
 
 type HistoryItem struct {
-	TxId string
+	TxId         string
 	Intelligence Intelligence
 }
