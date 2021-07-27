@@ -106,7 +106,7 @@ func (t *IntelligenceChaincode) queryFileByEntityIDAndName(stub shim.ChaincodeSt
 
 	}
 
-	file.Historys = historys
+	file.History = historys
 
 	// 返回
 	result, err = json.Marshal(file)

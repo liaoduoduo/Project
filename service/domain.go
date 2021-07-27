@@ -16,7 +16,7 @@ type Intelligence struct {
 	Desc       string `json:"Desc"`
 	Company    string `json:"Company"`
 
-	Historys []HistoryItem
+	History []HistoryItem
 }
 
 type HistoryItem struct {
