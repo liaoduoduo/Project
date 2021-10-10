@@ -8,14 +8,13 @@ import (
 )
 
 type Intelligence struct {
-	ObjectType string `json:"docType"`
-	Name       string `json:"Name"`
-	EntityID   string `json:"EntityID"`
-	FileHash   string `json:"FileHash"`
-	FileType   string `json:"FileType"`
-	Desc       string `json:"Desc"`
-	Company    string `json:"Company"`
-
+	ObjectType              string `json:"docType"`
+	Name                    string `json:"Name"`
+	EntityID                string `json:"EntityID"`
+	FileHash                string `json:"FileHash"`
+	FileType                string `json:"FileType"`
+	Desc                    string `json:"Desc"`
+	Company                 string `json:"Company"`
 	PermissionsInfo         string `json:"PermissionsInfo"`         //权限信息：只读、更改、完全控制
 	MachineInfo             string `json:"MachineInfo"`             //智能研判信息
 	MergeInfo               string `json:"MergeInfo"`               //合并信息

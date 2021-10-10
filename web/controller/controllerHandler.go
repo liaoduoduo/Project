@@ -92,13 +92,12 @@ func (app *Application) AddFileShow(w http.ResponseWriter, r *http.Request) {
 func (app *Application) AddFile(w http.ResponseWriter, r *http.Request) {
 
 	file := service.Intelligence{
-		Name:     r.FormValue("Name"),
-		EntityID: r.FormValue("EntityID"),
-		FileHash: r.FormValue("FileHash"),
-		FileType: r.FormValue("FileType"),
-		Desc:     r.FormValue("Desc"),
-		Company:  r.FormValue("Company"),
-
+		Name:                    r.FormValue("Name"),
+		EntityID:                r.FormValue("EntityID"),
+		FileHash:                r.FormValue("FileHash"),
+		FileType:                r.FormValue("FileType"),
+		Desc:                    r.FormValue("Desc"),
+		Company:                 r.FormValue("Company"),
 		PermissionsInfo:         r.FormValue("PermissionsInfo"),
 		MachineInfo:             r.FormValue("MachineInfo"),
 		MergeInfo:               r.FormValue("MergeInfo"),
@@ -214,13 +213,12 @@ func (app *Application) ModifyShow(w http.ResponseWriter, r *http.Request) {
 // Modify 修改/添加新信息
 func (app *Application) Modify(w http.ResponseWriter, r *http.Request) {
 	file := service.Intelligence{
-		Name:     r.FormValue("Name"),
-		EntityID: r.FormValue("EntityID"),
-		FileHash: r.FormValue("FileHash"),
-		FileType: r.FormValue("FileType"),
-		Desc:     r.FormValue("Desc"),
-		Company:  r.FormValue("Company"),
-
+		Name:                    r.FormValue("Name"),
+		EntityID:                r.FormValue("EntityID"),
+		FileHash:                r.FormValue("FileHash"),
+		FileType:                r.FormValue("FileType"),
+		Desc:                    r.FormValue("Desc"),
+		Company:                 r.FormValue("Company"),
 		PermissionsInfo:         r.FormValue("PermissionsInfo"),
 		MachineInfo:             r.FormValue("MachineInfo"),
 		MergeInfo:               r.FormValue("MergeInfo"),

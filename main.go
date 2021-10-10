@@ -89,7 +89,7 @@ func main() {
 		fmt.Println("信息发布成功, 交易编号为: " + msg)
 	}
 
-	// 根据证书编号与名称查询信息
+	// 根据ID与名称查询信息
 	result, err := serviceSetup.FindFileByIDAndName("123", "廖多越")
 	if err != nil {
 		fmt.Println(err.Error())

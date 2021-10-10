@@ -10,14 +10,13 @@ package main
 */
 
 type Intelligence struct {
-	ObjectType string `json:"docType"`
-	Name       string `json:"Name"`     //警员姓名
-	EntityID   string `json:"EntityID"` //ID、工号
-	FileHash   string `json:"FileHash"` //文件哈希
-	FileType   string `json:"FileType"` //文件类型
-	Desc       string `json:"Desc"`     //线索描述
-	Company    string `json:"Company"`  //基本信息
-
+	ObjectType              string `json:"docType"`
+	Name                    string `json:"Name"`                    //警员姓名
+	EntityID                string `json:"EntityID"`                //ID、工号
+	FileHash                string `json:"FileHash"`                //文件哈希
+	FileType                string `json:"FileType"`                //文件类型
+	Desc                    string `json:"Desc"`                    //线索描述
+	Company                 string `json:"Company"`                 //基本信息
 	PermissionsInfo         string `json:"PermissionsInfo"`         //权限信息：只读、更改、完全控制
 	MachineInfo             string `json:"MachineInfo"`             //智能研判信息
 	MergeInfo               string `json:"MergeInfo"`               //合并信息
