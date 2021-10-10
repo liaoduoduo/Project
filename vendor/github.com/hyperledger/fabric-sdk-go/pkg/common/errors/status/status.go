@@ -17,8 +17,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
@@ -58,7 +58,7 @@ const (
 
 	// EndorserServerStatus status returned by the endorser server
 	EndorserServerStatus
-	// EventServerStatus status returned by the eventhub
+	// EventServerStatus status returned by the event service
 	EventServerStatus
 	// OrdererServerStatus status returned by the ordering service
 	OrdererServerStatus
@@ -81,6 +81,9 @@ const (
 
 	// DiscoveryServerStatus status returned by the Discovery Server
 	DiscoveryServerStatus
+
+	// TestStatus is used by tests to create retry codes.
+	TestStatus
 )
 
 // GroupName maps the groups in this packages to human-readable strings
@@ -97,6 +100,7 @@ var GroupName = map[int32]string{
 	9:  "Client Status",
 	10: "Chaincode status",
 	11: "Discovery status",
+	12: "Test status",
 }
 
 func (g Group) String() string {

@@ -9,8 +9,8 @@ package status
 import (
 	"strconv"
 
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
+	"github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	grpcCodes "google.golang.org/grpc/codes"
 )
 
@@ -45,19 +45,21 @@ const (
 	// SignatureVerificationFailed is when signature fails verification
 	SignatureVerificationFailed Code = 8
 
-	// MissingEndorsement is if an endoresement is missing
+	// MissingEndorsement is if an endorsement is missing
 	MissingEndorsement Code = 9
 
 	// QueryEndorsers error indicates that no endorser group was found that would
 	// satisfy the chaincode policy
 	QueryEndorsers Code = 11
 
-	// PrematureChaincodeExecution indicates that an attempt was made to invoke a chaincode that's
-	// in the process of being launched.
-	PrematureChaincodeExecution Code = 21
+	// GenericTransient is generally used by tests to indicate that a retry is possible
+	GenericTransient Code = 12
 
-	// ChaincodeAlreadyLaunching indicates that an attempt for multiple simultaneous invokes was made to launch chaincode
-	ChaincodeAlreadyLaunching Code = 22
+	// ChaincodeNameNotFound indicates that an that an attempt was made to invoke a chaincode that's not yet initialized
+	ChaincodeNameNotFound Code = 23
+
+	// PvtDataDisseminationFailed indicates that Gossip failed to disseminate private data to the required number of peers
+	PvtDataDisseminationFailed Code = 24
 )
 
 // CodeName maps the codes in this packages to human-readable strings
@@ -72,13 +74,10 @@ var CodeName = map[int32]string{
 	7:  "MULTIPLE_ERRORS",
 	8:  "SIGNATURE_VERIFICATION_FAILED",
 	9:  "MISSING_ENDORSEMENT",
-	10: "CHAINCODE_ERROR",
 	11: "QUERY_ENDORSERS",
-	21: "NO_MATCHING_CERTIFICATE_AUTHORITY_ENTITY",
-	22: "NO_MATCHING_PEER_ENTITY",
-	23: "NO_MATCHING_ORDERER_ENTITY",
-	24: "PREMATURE_CHAINCODE_EXECUTION",
-	25: "NO_MATCHING_CHANNEL_ENTITY",
+	12: "GENERIC_TRANSIENT",
+	23: "CHAINCODE_NAME_NOT_FOUND",
+	24: "PRIVATE_DATA_DISSEMINATION_FAILED",
 }
 
 // ToInt32 cast to int32

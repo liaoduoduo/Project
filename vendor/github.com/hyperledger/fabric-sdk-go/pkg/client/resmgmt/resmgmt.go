@@ -27,26 +27,29 @@ import (
 	"os"
 	"time"
 
-	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
+	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/pkg/errors"
 
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxlator/update"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/common/verifier"
-	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
-	"github.com/hyperledger/fabric-sdk-go/pkg/fab/channel"
-	"github.com/hyperledger/fabric-sdk-go/pkg/fab/chconfig"
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/status"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
 	contextImpl "github.com/hyperledger/fabric-sdk-go/pkg/context"
+	"github.com/hyperledger/fabric-sdk-go/pkg/fab/channel"
+	"github.com/hyperledger/fabric-sdk-go/pkg/fab/chconfig"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/txn"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
-	"github.com/pkg/errors"
 )
+
+const bufferSize = 1024
 
 // InstallCCRequest contains install chaincode request parameters
 type InstallCCRequest struct {
@@ -68,9 +71,10 @@ type InstantiateCCRequest struct {
 	Name       string
 	Path       string
 	Version    string
+	Lang       pb.ChaincodeSpec_Type
 	Args       [][]byte
 	Policy     *common.SignaturePolicyEnvelope
-	CollConfig []*common.CollectionConfig
+	CollConfig []*pb.CollectionConfig
 }
 
 // InstantiateCCResponse contains response parameters for instantiate chaincode
@@ -83,9 +87,10 @@ type UpgradeCCRequest struct {
 	Name       string
 	Path       string
 	Version    string
+	Lang       pb.ChaincodeSpec_Type
 	Args       [][]byte
 	Policy     *common.SignaturePolicyEnvelope
-	CollConfig []*common.CollectionConfig
+	CollConfig []*pb.CollectionConfig
 }
 
 // UpgradeCCResponse contains response parameters for upgrade chaincode
@@ -101,15 +106,18 @@ type requestOptions struct {
 	Timeouts      map[fab.TimeoutType]time.Duration //timeout options for resmgmt operations
 	ParentContext reqContext.Context                //parent grpc context for resmgmt operations
 	Retry         retry.Opts
+	// signatures for channel configurations, if set, this option will take precedence over signatures of SaveChannelRequest.SigningIdentities
+	Signatures []*common.ConfigSignature
 }
 
 //SaveChannelRequest holds parameters for save channel request
 type SaveChannelRequest struct {
 	ChannelID         string
-	ChannelConfig     io.Reader             // ChannelConfig data source
-	ChannelConfigPath string                // Convenience option to use the named file as ChannelConfig reader
-	SigningIdentities []msp.SigningIdentity // Users that sign channel configuration
-	// TODO: support pre-signed signature blocks
+	ChannelConfig     io.Reader // ChannelConfig data source
+	ChannelConfigPath string    // Convenience option to use the named file as ChannelConfig reader
+	// Users that sign channel configuration
+	// deprecated - one entity shouldn't have access to another entities' keys to sign on their behalf
+	SigningIdentities []msp.SigningIdentity
 }
 
 // SaveChannelResponse contains response parameters for save channel
@@ -124,9 +132,10 @@ var logger = logging.NewLogger("fabsdk/client")
 
 // Client enables managing resources in Fabric network.
 type Client struct {
-	ctx              context.Client
-	filter           fab.TargetFilter
-	localCtxProvider context.LocalProvider
+	ctx                context.Client
+	filter             fab.TargetFilter
+	localCtxProvider   context.LocalProvider
+	lifecycleProcessor *lifecycleProcessor
 }
 
 // mspFilter filters peers by MSP ID
@@ -152,7 +161,6 @@ func WithDefaultTargetFilter(filter fab.TargetFilter) ClientOption {
 
 // New returns a resource management client instance.
 func New(ctxProvider context.ClientProvider, opts ...ClientOption) (*Client, error) {
-
 	ctx, err := ctxProvider()
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create resmgmt client due to context error")
@@ -182,6 +190,8 @@ func New(ctxProvider context.ClientProvider, opts ...ClientOption) (*Client, err
 			)
 		}
 	}
+
+	resourceClient.lifecycleProcessor = newLifecycleProcessor(ctx, resourceClient.getCCProposalTargets, resourceClient.verifyTPSignature, resourceClient.sendTransactionAndCheckEvent)
 
 	return resourceClient, nil
 }
@@ -405,7 +415,7 @@ func (rc *Client) InstallCC(req InstallCCRequest, options ...RequestOption) ([]I
 	reqCtx, cancel := contextImpl.NewRequest(rc.ctx, contextImpl.WithTimeoutType(fab.ResMgmt), contextImpl.WithParent(parentReqCtx))
 	defer cancel()
 
-	responses = rc.sendIntallCCRequest(req, reqCtx, newTargets, responses)
+	responses, err = rc.sendInstallCCRequest(req, reqCtx, newTargets, responses)
 
 	if err != nil {
 		installErrs, ok := err.(multi.Errors)
@@ -419,16 +429,20 @@ func (rc *Client) InstallCC(req InstallCCRequest, options ...RequestOption) ([]I
 	return responses, errs.ToError()
 }
 
-func (rc *Client) sendIntallCCRequest(req InstallCCRequest, reqCtx reqContext.Context, newTargets []fab.Peer, responses []InstallCCResponse) []InstallCCResponse {
+func (rc *Client) sendInstallCCRequest(req InstallCCRequest, reqCtx reqContext.Context, newTargets []fab.Peer, responses []InstallCCResponse) ([]InstallCCResponse, error) {
 	icr := resource.InstallChaincodeRequest{Name: req.Name, Path: req.Path, Version: req.Version, Package: req.Package}
-	transactionProposalResponse, _, _ := resource.InstallChaincode(reqCtx, icr, peer.PeersToTxnProcessors(newTargets))
+	transactionProposalResponse, _, err := resource.InstallChaincode(reqCtx, icr, peer.PeersToTxnProcessors(newTargets))
+	if err != nil {
+		return nil, errors.WithMessage(err, "installing chaincode failed")
+	}
+
 	for _, v := range transactionProposalResponse {
 		logger.Debugf("Install chaincode '%s' endorser '%s' returned ProposalResponse status:%v", req.Name, v.Endorser, v.Status)
 
 		response := InstallCCResponse{Target: v.Endorser, Status: v.Status}
 		responses = append(responses, response)
 	}
-	return responses
+	return responses, nil
 }
 
 func (rc *Client) adjustTargets(targets []fab.Peer, req InstallCCRequest, retry retry.Opts, parentReqCtx reqContext.Context) ([]InstallCCResponse, []fab.Peer, multi.Errors) {
@@ -567,27 +581,12 @@ func (rc *Client) QueryInstantiatedChaincodes(channelID string, options ...Reque
 	if len(opts.Targets) >= 1 {
 		target = opts.Targets[0]
 	} else {
-		// discover peers on this channel
-		discovery, err := chCtx.ChannelService().Discovery()
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get discovery service")
-		}
-		// default filter will be applied (if any)
-		targets, err2 := rc.getDefaultTargets(discovery)
-		if err2 != nil {
-			return nil, errors.WithMessage(err2, "failed to get default target for query instantiated chaincodes")
-		}
-
-		// Filter by MSP since the LSCC only allows local calls
-		targets = filterTargets(targets, &mspFilter{mspID: chCtx.Identifier().MSPID})
-
-		if len(targets) == 0 {
-			return nil, errors.Errorf("no targets in MSP [%s]", chCtx.Identifier().MSPID)
-		}
-
 		// select random channel peer
-		randomNumber := rand.Intn(len(targets))
-		target = targets[randomNumber]
+		var srcpErr error
+		target, srcpErr = rc.selectRandomChannelPeer(chCtx)
+		if srcpErr != nil {
+			return nil, srcpErr
+		}
 	}
 
 	l, err := channel.NewLedger(channelID)
@@ -612,6 +611,90 @@ func (rc *Client) QueryInstantiatedChaincodes(channelID string, options ...Reque
 	}
 
 	return responses[0], nil
+}
+
+// QueryCollectionsConfig queries the collections config on a peer for specific channel. If peer is not specified in options it will query random peer on this channel.
+// Parameters:
+// channel is mandatory channel name
+// chaincode is mandatory chaincode name
+// options hold optional request options
+//
+// Returns:
+// list of collections config
+func (rc *Client) QueryCollectionsConfig(channelID string, chaincodeName string, options ...RequestOption) (*pb.CollectionConfigPackage, error) {
+	opts, err := rc.prepareRequestOpts(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	chCtx, err := contextImpl.NewChannel(
+		func() (context.Client, error) {
+			return rc.ctx, nil
+		},
+		channelID,
+	)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to create channel context")
+	}
+
+	var target fab.ProposalProcessor
+	if len(opts.Targets) >= 1 {
+		target = opts.Targets[0]
+	} else {
+		// select random channel peer
+		var srcpErr error
+		target, srcpErr = rc.selectRandomChannelPeer(chCtx)
+		if srcpErr != nil {
+			return nil, srcpErr
+		}
+	}
+
+	l, err := channel.NewLedger(channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := rc.createRequestContext(opts, fab.PeerResponse)
+	defer cancel()
+
+	// Channel service membership is required to verify signature
+	channelService := chCtx.ChannelService()
+
+	membership, err := channelService.Membership()
+	if err != nil {
+		return nil, errors.WithMessage(err, "membership creation failed")
+	}
+
+	responses, err := l.QueryCollectionsConfig(reqCtx, chaincodeName, []fab.ProposalProcessor{target}, &verifier.Signature{Membership: membership})
+	if err != nil {
+		return nil, err
+	}
+
+	return responses[0], nil
+}
+
+func (rc *Client) selectRandomChannelPeer(ctx context.Channel) (fab.ProposalProcessor, error) {
+	// discover peers on this channel
+	discovery, err := ctx.ChannelService().Discovery()
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get discovery service")
+	}
+	// default filter will be applied (if any)
+	targets, err2 := rc.getDefaultTargets(discovery)
+	if err2 != nil {
+		return nil, errors.WithMessage(err2, "failed to get default target for query instantiated chaincodes")
+	}
+
+	// Filter by MSP since the LSCC only allows local calls
+	targets = filterTargets(targets, &mspFilter{mspID: ctx.Identifier().MSPID})
+
+	if len(targets) == 0 {
+		return nil, errors.Errorf("no targets in MSP [%s]", ctx.Identifier().MSPID)
+	}
+
+	// select random channel peer
+	randomNumber := rand.Intn(len(targets))
+	return targets[randomNumber], nil
 }
 
 // QueryChannels queries the names of all the channels that a peer has joined.
@@ -640,7 +723,7 @@ func (rc *Client) QueryChannels(options ...RequestOption) (*pb.ChannelQueryRespo
 }
 
 // validateSendCCProposal
-func (rc *Client) getCCProposalTargets(channelID string, req InstantiateCCRequest, opts requestOptions) ([]fab.Peer, error) {
+func (rc *Client) getCCProposalTargets(channelID string, opts requestOptions) ([]fab.Peer, error) {
 
 	chCtx, err := contextImpl.NewChannel(
 		func() (context.Client, error) {
@@ -711,11 +794,11 @@ func (rc *Client) verifyTPSignature(channelService fab.ChannelService, txProposa
 
 // sendCCProposal sends proposal for type  Instantiate, Upgrade
 func (rc *Client) sendCCProposal(reqCtx reqContext.Context, ccProposalType chaincodeProposalType, channelID string, req InstantiateCCRequest, opts requestOptions) (fab.TransactionID, error) {
-	if err := checkRequiredCCProposalParams(channelID, req); err != nil {
+	if err := checkRequiredCCProposalParams(channelID, &req); err != nil {
 		return fab.EmptyTransactionID, err
 	}
 
-	targets, err := rc.getCCProposalTargets(channelID, req, opts)
+	targets, err := rc.getCCProposalTargets(channelID, opts)
 	if err != nil {
 		return fab.EmptyTransactionID, err
 	}
@@ -786,7 +869,7 @@ func (rc *Client) sendTransactionAndCheckEvent(eventService fab.EventService, tp
 	}
 }
 
-func checkRequiredCCProposalParams(channelID string, req InstantiateCCRequest) error {
+func checkRequiredCCProposalParams(channelID string, req *InstantiateCCRequest) error {
 
 	if channelID == "" {
 		return errors.New("must provide channel ID")
@@ -795,6 +878,12 @@ func checkRequiredCCProposalParams(channelID string, req InstantiateCCRequest) e
 	if req.Name == "" || req.Version == "" || req.Path == "" || req.Policy == nil {
 		return errors.New("Chaincode name, version, path and policy are required")
 	}
+
+	// Forward compatibility, set Lang to golang by default
+	if req.Lang == 0 || pb.ChaincodeSpec_Type_name[int32(req.Lang)] == "" {
+		req.Lang = pb.ChaincodeSpec_GOLANG
+	}
+
 	return nil
 }
 
@@ -828,6 +917,9 @@ func peersToTxnProcessors(peers []fab.Peer) []fab.ProposalProcessor {
 //  Parameters:
 //  req holds info about mandatory channel name and configuration
 //  options holds optional request options
+//  if options have signatures (WithConfigSignatures() or 1 or more WithConfigSignature() calls), then SaveChannel will
+//     use these signatures instead of creating ones for the SigningIdentities found in req.
+//	   Make sure that req.ChannelConfigPath/req.ChannelConfig have the channel config matching these signatures.
 //
 //  Returns:
 //  save channel response with transaction ID
@@ -840,28 +932,23 @@ func (rc *Client) SaveChannel(req SaveChannelRequest, options ...RequestOption) 
 
 	if req.ChannelConfigPath != "" {
 		configReader, err1 := os.Open(req.ChannelConfigPath)
+		defer loggedClose(configReader)
 		if err1 != nil {
 			return SaveChannelResponse{}, errors.Wrapf(err1, "opening channel config file failed")
 		}
-		defer loggedClose(configReader)
 		req.ChannelConfig = configReader
 	}
 
 	err = rc.validateSaveChannelRequest(req)
 	if err != nil {
-		return SaveChannelResponse{}, errors.WithMessage(err, "reading channel config file failed")
+		return SaveChannelResponse{}, err
 	}
 
 	logger.Debugf("saving channel: %s", req.ChannelID)
 
-	configTx, err := ioutil.ReadAll(req.ChannelConfig)
+	chConfig, err := extractChConfigTx(req.ChannelConfig)
 	if err != nil {
-		return SaveChannelResponse{}, errors.WithMessage(err, "reading channel config file failed")
-	}
-
-	chConfig, err := resource.ExtractChannelConfig(configTx)
-	if err != nil {
-		return SaveChannelResponse{}, errors.WithMessage(err, "extracting channel config failed")
+		return SaveChannelResponse{}, errors.WithMessage(err, "extracting channel config from ConfigTx failed")
 	}
 
 	orderer, err := rc.requestOrderer(&opts, req.ChannelID)
@@ -869,15 +956,36 @@ func (rc *Client) SaveChannel(req SaveChannelRequest, options ...RequestOption) 
 		return SaveChannelResponse{}, errors.WithMessage(err, "failed to find orderer for request")
 	}
 
-	configSignatures, err := rc.getConfigSignatures(req, chConfig)
+	txID, err := rc.signAndSubmitChannelConfigTx(
+		req.ChannelID,
+		req.SigningIdentities,
+		opts,
+		chConfig,
+		orderer,
+	)
 	if err != nil {
-		return SaveChannelResponse{}, err
+		return SaveChannelResponse{}, errors.WithMessage(err, "create channel failed")
+	}
+
+	return SaveChannelResponse{TransactionID: txID}, nil
+}
+
+func (rc *Client) signAndSubmitChannelConfigTx(channelID string, signingIdentities []msp.SigningIdentity, opts requestOptions, chConfigTx []byte, orderer fab.Orderer) (fab.TransactionID, error) {
+	var configSignatures []*common.ConfigSignature
+	var err error
+	if opts.Signatures != nil {
+		configSignatures = opts.Signatures
+	} else {
+		configSignatures, err = rc.getConfigSignatures(signingIdentities, chConfigTx)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	request := resource.CreateChannelRequest{
-		Name:       req.ChannelID,
+		Name:       channelID,
 		Orderer:    orderer,
-		Config:     chConfig,
+		Config:     chConfigTx,
 		Signatures: configSignatures,
 	}
 
@@ -886,10 +994,28 @@ func (rc *Client) SaveChannel(req SaveChannelRequest, options ...RequestOption) 
 
 	txID, err := resource.CreateChannel(reqCtx, request, resource.WithRetry(opts.Retry))
 	if err != nil {
-		return SaveChannelResponse{}, errors.WithMessage(err, "create channel failed")
+		return "", errors.WithMessage(err, "create channel failed")
+	}
+	return txID, nil
+}
+
+// CalculateConfigUpdate calculates channel config update based on the difference between provided
+// current channel config and proposed new channel config.
+func CalculateConfigUpdate(channelID string, currentConfig, newConfig *common.Config) (*common.ConfigUpdate, error) {
+
+	if channelID == "" || currentConfig == nil || newConfig == nil {
+		return nil, errors.New("must provide channel ID and current and new channel config")
 	}
 
-	return SaveChannelResponse{TransactionID: txID}, nil
+	if currentConfig.Sequence != newConfig.Sequence {
+		return nil, errors.New("channel config sequence mismatch")
+	}
+	configUpdate, err := update.Compute(currentConfig, newConfig)
+	if err != nil {
+		return nil, errors.WithMessage(err, "config update computation failed")
+	}
+	configUpdate.ChannelId = channelID
+	return configUpdate, nil
 }
 
 func (rc *Client) validateSaveChannelRequest(req SaveChannelRequest) error {
@@ -900,14 +1026,13 @@ func (rc *Client) validateSaveChannelRequest(req SaveChannelRequest) error {
 	return nil
 }
 
-func (rc *Client) getConfigSignatures(req SaveChannelRequest, chConfig []byte) ([]*common.ConfigSignature, error) {
-
+func (rc *Client) getConfigSignatures(signingIdentities []msp.SigningIdentity, chConfig []byte) ([]*common.ConfigSignature, error) {
 	// Signing user has to belong to one of configured channel organisations
 	// In case that order org is one of channel orgs we can use context user
 	var signers []msp.SigningIdentity
 
-	if len(req.SigningIdentities) > 0 {
-		for _, id := range req.SigningIdentities {
+	if len(signingIdentities) > 0 {
+		for _, id := range signingIdentities {
 			if id != nil {
 				signers = append(signers, id)
 			}
@@ -918,6 +1043,168 @@ func (rc *Client) getConfigSignatures(req SaveChannelRequest, chConfig []byte) (
 		return nil, errors.New("must provide signing user")
 	}
 
+	return rc.createCfgSigFromIDs(chConfig, signers...)
+}
+
+func extractChConfigTx(channelConfigReader io.Reader) ([]byte, error) {
+	if channelConfigReader == nil {
+		return nil, errors.New("must provide a non empty channel config file")
+	}
+	configTx, err := ioutil.ReadAll(channelConfigReader)
+	if err != nil {
+		return nil, errors.WithMessage(err, "reading channel config file failed")
+	}
+
+	chConfig, err := resource.ExtractChannelConfig(configTx)
+	if err != nil {
+		return nil, errors.WithMessage(err, "extracting channel config from ConfigTx failed")
+	}
+
+	return chConfig, nil
+}
+
+// CreateConfigSignature creates a signature for the given client, custom signers and chConfig from channelConfigPath argument
+//	return ConfigSignature will be signed internally by the SDK. It can be passed to WithConfigSignatures() option
+// Deprecated: this method is deprecated in order to use CreateConfigSignatureFromReader
+func (rc *Client) CreateConfigSignature(signer msp.SigningIdentity, channelConfigPath string) (*common.ConfigSignature, error) {
+	if channelConfigPath == "" {
+		return nil, errors.New("must provide a channel config path")
+	}
+
+	configReader, err := os.Open(channelConfigPath) //nolint
+	if err != nil {
+		return nil, errors.Wrapf(err, "opening channel config file failed")
+	}
+	defer loggedClose(configReader)
+
+	return rc.CreateConfigSignatureFromReader(signer, configReader)
+}
+
+// CreateConfigSignatureFromReader creates a signature for the given client, custom signers and chConfig from io.Reader argument
+//	return ConfigSignature will be signed internally by the SDK. It can be passed to WithConfigSignatures() option
+func (rc *Client) CreateConfigSignatureFromReader(signer msp.SigningIdentity, channelConfig io.Reader) (*common.ConfigSignature, error) {
+	chConfig, err := extractChConfigTx(channelConfig)
+	if err != nil {
+		return nil, errors.WithMessage(err, "extracting channel config failed")
+	}
+
+	sigs, err := rc.createCfgSigFromIDs(chConfig, signer)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) != 1 {
+		return nil, errors.New("creating a config signature for 1 identity did not return 1 signature")
+	}
+
+	return sigs[0], nil
+}
+
+// CreateConfigSignatureData will prepare a SignatureHeader and the full signing []byte (signingBytes) to be used for signing a Channel Config
+// Deprecated: this method is deprecated in order to use CreateConfigSignatureDataFromReader
+func (rc *Client) CreateConfigSignatureData(signer msp.SigningIdentity, channelConfigPath string) (signatureHeaderData resource.ConfigSignatureData, e error) {
+	if channelConfigPath == "" {
+		e = errors.New("must provide a channel config path")
+		return
+	}
+
+	configReader, err := os.Open(channelConfigPath) //nolint
+	if err != nil {
+		e = errors.Wrapf(err, "opening channel config file failed")
+		return
+	}
+	defer loggedClose(configReader)
+
+	return rc.CreateConfigSignatureDataFromReader(signer, configReader)
+}
+
+// CreateConfigSignatureDataFromReader will prepare a SignatureHeader and the full signing []byte (signingBytes) to be used for signing a Channel Config
+// 	Once SigningBytes have been signed externally (signing signatureHeaderData.SigningBytes using an external tool like OpenSSL), do the following:
+//  1. create a common.ConfigSignature{} instance
+//  2. assign its SignatureHeader field with the returned field 'signatureHeaderData.signatureHeader'
+//  3. assign its Signature field with the generated signature of 'signatureHeaderData.signingBytes' from the external tool
+//  Then use WithConfigSignatures() option to pass this new instance for channel updates
+func (rc *Client) CreateConfigSignatureDataFromReader(signer msp.SigningIdentity, channelConfig io.Reader) (signatureHeaderData resource.ConfigSignatureData, e error) {
+	chConfig, err := extractChConfigTx(channelConfig)
+	if err != nil {
+		e = errors.WithMessage(err, "extracting channel config failed")
+		return
+	}
+
+	sigCtx := contextImpl.Client{
+		SigningIdentity: signer,
+		Providers:       rc.ctx,
+	}
+
+	return resource.GetConfigSignatureData(&sigCtx, chConfig)
+}
+
+// MarshalConfigSignature marshals 1 ConfigSignature for the given client concatenated as []byte
+func MarshalConfigSignature(signature *common.ConfigSignature) ([]byte, error) {
+	mSig, err := proto.Marshal(signature)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to marshal signature")
+	}
+	return mSig, nil
+}
+
+// UnmarshalConfigSignature reads 1 ConfigSignature as []byte from reader and unmarshals it
+func UnmarshalConfigSignature(reader io.Reader) (*common.ConfigSignature, error) {
+	arr, err := readConfigSignatureArray(reader)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading ConfigSiganture array failed")
+	}
+
+	configSignature := &common.ConfigSignature{}
+	err = proto.Unmarshal(arr, configSignature)
+	if err != nil {
+		return nil, errors.WithMessage(err, "Failed to unmarshal config signature")
+	}
+	return configSignature, nil
+}
+
+func createConfigSignatureOption(r io.Reader, opts *requestOptions) error {
+	arr, err := readConfigSignatureArray(r)
+	if err != nil {
+		logger.Warnf("Failed to read channel config signature from bytes array: %s .. ignoring", err)
+		return err
+	}
+
+	singleSig := &common.ConfigSignature{}
+
+	err = proto.Unmarshal(arr, singleSig)
+	if err != nil {
+		logger.Warnf("Failed to unmarshal channel config signature from bytes array: %s .. ignoring signature", err)
+		return err
+	}
+
+	opts.Signatures = append(opts.Signatures, singleSig)
+
+	return nil
+}
+
+func readConfigSignatureArray(reader io.Reader) ([]byte, error) {
+	buff := make([]byte, bufferSize)
+	arr := []byte{}
+	for {
+		n, err := reader.Read(buff)
+		if err != nil && err != io.EOF {
+			logger.Warnf("Failed to read config signature data from reader: %s", err)
+			return nil, errors.WithMessage(err, "Failed to read config signature data from reader")
+		}
+
+		if n == 0 {
+			break
+		} else if n < bufferSize {
+			arr = append(arr, buff[:n]...)
+		} else {
+			arr = append(arr, buff...)
+		}
+	}
+	return arr, nil
+}
+
+func (rc *Client) createCfgSigFromIDs(chConfig []byte, signers ...msp.SigningIdentity) ([]*common.ConfigSignature, error) {
 	var configSignatures []*common.ConfigSignature
 	for _, signer := range signers {
 
@@ -934,7 +1221,6 @@ func (rc *Client) getConfigSignatures(req SaveChannelRequest, chConfig []byte) (
 	}
 
 	return configSignatures, nil
-
 }
 
 func loggedClose(c io.Closer) {
@@ -942,6 +1228,41 @@ func loggedClose(c io.Closer) {
 	if err != nil {
 		logger.Warnf("closing resource failed: %s", err)
 	}
+}
+
+func (rc *Client) getChannelConfig(channelID string, opts requestOptions) (*chconfig.ChannelConfig, error) {
+	orderer, err := rc.requestOrderer(&opts, channelID)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to find orderer for request")
+	}
+
+	return chconfig.New(channelID, chconfig.WithOrderer(orderer))
+}
+
+// QueryConfigBlockFromOrderer config returns channel configuration block from orderer. If orderer is not provided using options it will be defaulted to channel orderer (if configured) or random orderer from configuration.
+//  Parameters:
+//  channelID is mandatory channel ID
+//  options holds optional request options
+//
+//  Returns:
+//  channel configuration block
+func (rc *Client) QueryConfigBlockFromOrderer(channelID string, options ...RequestOption) (*common.Block, error) {
+
+	opts, err := rc.prepareRequestOpts(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	channelConfig, err := rc.getChannelConfig(channelID, opts)
+	if err != nil {
+		return nil, errors.WithMessage(err, "QueryConfig failed")
+	}
+
+	reqCtx, cancel := rc.createRequestContext(opts, fab.OrdererResponse)
+	defer cancel()
+
+	return channelConfig.QueryBlock(reqCtx)
+
 }
 
 // QueryConfigFromOrderer config returns channel configuration from orderer. If orderer is not provided using options it will be defaulted to channel orderer (if configured) or random orderer from configuration.
@@ -958,12 +1279,7 @@ func (rc *Client) QueryConfigFromOrderer(channelID string, options ...RequestOpt
 		return nil, err
 	}
 
-	orderer, err := rc.requestOrderer(&opts, channelID)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to find orderer for request")
-	}
-
-	channelConfig, err := chconfig.New(channelID, chconfig.WithOrderer(orderer))
+	channelConfig, err := rc.getChannelConfig(channelID, opts)
 	if err != nil {
 		return nil, errors.WithMessage(err, "QueryConfig failed")
 	}
@@ -994,17 +1310,13 @@ func (rc *Client) requestOrderer(opts *requestOptions, channelID string) (fab.Or
 }
 
 func (rc *Client) ordererConfig(channelID string) (*fab.OrdererConfig, error) {
-	orderers, ok := rc.ctx.EndpointConfig().ChannelOrderers(channelID)
-
-	// TODO: Not sure that we should fallback to global orderers section.
-	// For now - not doing so.
-	//if err != nil || len(orderers) == 0 {
-	//	orderers, err = rc.ctx.Config().OrderersConfig()
-	//}
-
-	if !ok {
-		return nil, errors.New("orderers lookup failed")
+	orderers := rc.ctx.EndpointConfig().ChannelOrderers(channelID)
+	if len(orderers) > 0 {
+		randomNumber := rand.Intn(len(orderers))
+		return &orderers[randomNumber], nil
 	}
+
+	orderers = rc.ctx.EndpointConfig().OrderersConfig()
 	if len(orderers) == 0 {
 		return nil, errors.New("no orderers found")
 	}

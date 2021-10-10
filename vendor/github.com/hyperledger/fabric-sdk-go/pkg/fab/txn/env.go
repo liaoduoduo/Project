@@ -15,12 +15,12 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
 
+	"github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/crypto"
 	contextApi "github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite"
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
 
 // TransactionHeader contains metadata for a transaction created by the SDK.
@@ -53,16 +53,29 @@ func (th *TransactionHeader) ChannelID() string {
 
 // NewHeader computes a TransactionID from the current user context and holds
 // metadata to create transaction proposals.
-func NewHeader(ctx contextApi.Client, channelID string) (*TransactionHeader, error) {
-	// generate a random nonce
-	nonce, err := crypto.GetRandomNonce()
-	if err != nil {
-		return nil, errors.WithMessage(err, "nonce creation failed")
+func NewHeader(ctx contextApi.Client, channelID string, opts ...fab.TxnHeaderOpt) (*TransactionHeader, error) {
+	var options fab.TxnHeaderOptions
+	for _, opt := range opts {
+		opt(&options)
 	}
 
-	creator, err := ctx.Serialize()
-	if err != nil {
-		return nil, errors.WithMessage(err, "identity from context failed")
+	nonce := options.Nonce
+	if nonce == nil {
+		// generate a random nonce
+		var err error
+		nonce, err = crypto.GetRandomNonce()
+		if err != nil {
+			return nil, errors.WithMessage(err, "nonce creation failed")
+		}
+	}
+
+	creator := options.Creator
+	if creator == nil {
+		var err error
+		creator, err = ctx.Serialize()
+		if err != nil {
+			return nil, errors.WithMessage(err, "identity from context failed")
+		}
 	}
 
 	ho := cryptosuite.GetSHA256Opts() // TODO: make configurable
@@ -127,7 +140,7 @@ type ChannelHeaderOpts struct {
 //
 // TODO: Determine if this function should be exported after refactoring is completed.
 func CreateChannelHeader(headerType common.HeaderType, opts ChannelHeaderOpts) (*common.ChannelHeader, error) {
-	logger.Debugf("buildChannelHeader - headerType: %s channelID: %s txID: %d epoch: % chaincodeID: %s timestamp: %v", headerType, opts.TxnHeader.channelID, opts.TxnHeader.id, opts.Epoch, opts.ChaincodeID, opts.Timestamp)
+	logger.Debugf("buildChannelHeader - headerType: %s channelID: %s txID: %d epoch: %d chaincodeID: %s timestamp: %v", headerType, opts.TxnHeader.channelID, opts.TxnHeader.id, opts.Epoch, opts.ChaincodeID, opts.Timestamp)
 	channelHeader := &common.ChannelHeader{
 		Type:        int32(headerType),
 		ChannelId:   opts.TxnHeader.channelID,

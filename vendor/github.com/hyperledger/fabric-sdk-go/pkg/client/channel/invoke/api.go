@@ -11,20 +11,27 @@ import (
 	reqContext "context"
 	"time"
 
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	selectopts "github.com/hyperledger/fabric-sdk-go/pkg/client/common/selection/options"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
+
+// CCFilter returns true if the given chaincode should be included
+// in the invocation chain when computing endorsers.
+type CCFilter func(ccID string) bool
 
 // Opts allows the user to specify more advanced options
 type Opts struct {
 	Targets       []fab.Peer // targets
 	TargetFilter  fab.TargetFilter
+	TargetSorter  fab.TargetSorter
 	Retry         retry.Opts
+	BeforeRetry   retry.BeforeRetryHandler
 	Timeouts      map[fab.TimeoutType]time.Duration
 	ParentContext reqContext.Context //parent grpc context
+	CCFilter      CCFilter
 }
 
 // Request contains the parameters to execute transaction
@@ -43,6 +50,7 @@ type Request struct {
 	// The invoked chaincode (specified by ChaincodeID) may optionally be added to the invocation
 	// chain along with any collections, otherwise it may be omitted.
 	InvocationChain []*fab.ChaincodeCall
+	IsInit          bool
 }
 
 //Response contains response parameters for query and execute transaction
@@ -79,4 +87,5 @@ type RequestContext struct {
 	RetryHandler    retry.Handler
 	Ctx             reqContext.Context
 	SelectionFilter selectopts.PeerFilter
+	PeerSorter      selectopts.PeerSorter
 }

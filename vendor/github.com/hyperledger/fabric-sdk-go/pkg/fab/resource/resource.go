@@ -15,6 +15,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
+	"github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
@@ -24,8 +26,6 @@ import (
 	contextImpl "github.com/hyperledger/fabric-sdk-go/pkg/context"
 	ccomm "github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/txn"
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
 
 var logger = logging.NewLogger("fabsdk/fab")
@@ -240,9 +240,15 @@ func createOrUpdateChannel(reqCtx reqContext.Context, txh *txn.TransactionHeader
 	if !ok {
 		return errors.New("failed get client context from reqContext for Creating ChannelHeader")
 	}
+
+	hash, err := ccomm.TLSCertHash(ctx.EndpointConfig())
+	if err != nil {
+		return errors.WithMessage(err, "failed to get tls cert hash")
+	}
+
 	channelHeaderOpts := txn.ChannelHeaderOpts{
 		TxnHeader:   txh,
-		TLSCertHash: ccomm.TLSCertHash(ctx.EndpointConfig()),
+		TLSCertHash: hash,
 	}
 	channelHeader, err := txn.CreateChannelHeader(common.HeaderType_CONFIG_UPDATE, channelHeaderOpts)
 	if err != nil {
@@ -361,7 +367,7 @@ func InstallChaincode(reqCtx reqContext.Context, req InstallChaincodeRequest, ta
 		return nil, fab.EmptyTransactionID, err
 	}
 
-	return resp.([]*fab.TransactionProposalResponse), prop.TxnID, err
+	return resp.([]*fab.TransactionProposalResponse), prop.TxnID, nil
 }
 
 func queryChaincodeWithTarget(reqCtx reqContext.Context, request fab.ChaincodeInvokeRequest, target fab.ProposalProcessor, opts options) ([]byte, error) {
@@ -415,4 +421,27 @@ func getOpts(opts ...Opt) options {
 		opt(&optionsValue)
 	}
 	return optionsValue
+}
+
+// ExtractConfigFromBlock extracts channel configuration from block
+func ExtractConfigFromBlock(block *common.Block) (*common.Config, error) {
+	if block == nil || block.Data == nil || len(block.Data.Data) == 0 {
+		return nil, errors.New("invalid block")
+	}
+	blockPayload := block.Data.Data[0]
+
+	envelope := &common.Envelope{}
+	if err := proto.Unmarshal(blockPayload, envelope); err != nil {
+		return nil, err
+	}
+	payload := &common.Payload{}
+	if err := proto.Unmarshal(envelope.Payload, payload); err != nil {
+		return nil, err
+	}
+
+	cfgEnv := &common.ConfigEnvelope{}
+	if err := proto.Unmarshal(payload.Data, cfgEnv); err != nil {
+		return nil, err
+	}
+	return cfgEnv.Config, nil
 }

@@ -114,23 +114,22 @@ func (cc *CachingConnector) DialContext(ctx context.Context, target string, opts
 	logger.Debugf("DialContext: %s", target)
 
 	cc.lock.Lock()
-	c, ok := cc.loadConn(target)
-	if !ok {
-		createdConn, err := cc.createConn(ctx, target, opts...)
-		if err != nil {
-			cc.lock.Unlock()
-			return nil, errors.WithMessage(err, "connection creation failed")
-		}
-		c = createdConn
+
+	createdConn, err := cc.createConn(ctx, target, opts...)
+	if err != nil {
+		cc.lock.Unlock()
+		return nil, errors.WithMessage(err, "connection creation failed")
 	}
+	c := createdConn
 
 	cc.lock.Unlock()
 
 	if err := cc.openConn(ctx, c); err != nil {
 		cc.lock.Lock()
 		setClosed(c)
+		cc.removeConn(c)
 		cc.lock.Unlock()
-		return nil, errors.Errorf("dialing connection timed out [%s]", target)
+		return nil, errors.WithMessagef(err, "dialing connection on target [%s]", target)
 	}
 	return c.conn, nil
 }
@@ -194,7 +193,7 @@ func (cc *CachingConnector) createConn(ctx context.Context, target string, opts 
 	logger.Debugf("creating connection [%s]", target)
 	conn, err := grpc.DialContext(ctx, target, opts...)
 	if err != nil {
-		return nil, errors.WithMessage(err, "dialing peer failed")
+		return nil, errors.WithMessage(err, "dialing node failed")
 	}
 
 	logger.Debugf("storing connection [%s]", target)
@@ -228,6 +227,12 @@ func waitConn(ctx context.Context, conn *grpc.ClientConn, targetState connectivi
 		state := conn.GetState()
 		if state == targetState {
 			break
+		}
+		if state == connectivity.TransientFailure {
+			// The server was probably restarted. It's better for the client to retry with a new connection rather
+			// than reusing a cached connection that's in TRANSIENT_FAILURE state since it takes much longer to
+			// recover while waiting for the state to change to READY - even if the server is up.
+			return errors.Errorf("connection is in %s", state)
 		}
 		if !conn.WaitForStateChange(ctx, state) {
 			return errors.Wrap(ctx.Err(), "waiting for connection failed")
@@ -278,7 +283,6 @@ func (cc *CachingConnector) ensureJanitorStarted() {
 		cc.waitgroup.Add(1)
 		go cc.janitor()
 	default:
-		logger.Debug("janitor already started")
 	}
 }
 
@@ -300,6 +304,7 @@ func (cc *CachingConnector) janitor() {
 	defer cc.waitgroup.Done()
 
 	ticker := time.NewTicker(cc.sweepTime)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-cc.janitorDone:

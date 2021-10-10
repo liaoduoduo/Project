@@ -10,11 +10,12 @@ import (
 	reqContext "context"
 	"time"
 
+	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel/invoke"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/comm"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 	"github.com/pkg/errors"
 )
 
@@ -22,9 +23,12 @@ import (
 type requestOptions struct {
 	Targets       []fab.Peer // targets
 	TargetFilter  fab.TargetFilter
+	TargetSorter  fab.TargetSorter
 	Retry         retry.Opts
+	BeforeRetry   retry.BeforeRetryHandler
 	Timeouts      map[fab.TimeoutType]time.Duration //timeout options for channel client operations
 	ParentContext reqContext.Context                //parent grpc context for channel client operations (query, execute, invokehandler)
+	CCFilter      invoke.CCFilter
 }
 
 // RequestOption func for each Opts argument
@@ -46,6 +50,7 @@ type Request struct {
 	// The invoked chaincode (specified by ChaincodeID) may optionally be added to the invocation
 	// chain along with any collections, otherwise it may be omitted.
 	InvocationChain []*fab.ChaincodeCall
+	IsInit          bool
 }
 
 //Response contains response parameters for query and execute an invocation transaction
@@ -109,10 +114,26 @@ func WithTargetFilter(filter fab.TargetFilter) RequestOption {
 	}
 }
 
+// WithTargetSorter specifies a per-request target sorter
+func WithTargetSorter(sorter fab.TargetSorter) RequestOption {
+	return func(ctx context.Client, o *requestOptions) error {
+		o.TargetSorter = sorter
+		return nil
+	}
+}
+
 // WithRetry option to configure retries
 func WithRetry(retryOpt retry.Opts) RequestOption {
 	return func(ctx context.Client, o *requestOptions) error {
 		o.Retry = retryOpt
+		return nil
+	}
+}
+
+// WithBeforeRetry specifies a function to call before a retry attempt
+func WithBeforeRetry(beforeRetry retry.BeforeRetryHandler) RequestOption {
+	return func(ctx context.Client, o *requestOptions) error {
+		o.BeforeRetry = beforeRetry
 		return nil
 	}
 }
@@ -132,6 +153,14 @@ func WithTimeout(timeoutType fab.TimeoutType, timeout time.Duration) RequestOpti
 func WithParentContext(parentContext reqContext.Context) RequestOption {
 	return func(ctx context.Client, o *requestOptions) error {
 		o.ParentContext = parentContext
+		return nil
+	}
+}
+
+//WithChaincodeFilter adds a chaincode filter for figuring out additional endorsers
+func WithChaincodeFilter(ccFilter invoke.CCFilter) RequestOption {
+	return func(ctx context.Client, o *requestOptions) error {
+		o.CCFilter = ccFilter
 		return nil
 	}
 }

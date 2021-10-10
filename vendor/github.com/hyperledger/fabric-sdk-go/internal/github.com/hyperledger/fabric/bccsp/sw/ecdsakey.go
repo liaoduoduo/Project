@@ -21,30 +21,39 @@ package sw
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
-	"fmt"
-
-	"crypto/sha256"
-
-	"errors"
-
 	"crypto/elliptic"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
+	"fmt"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 )
 
 type ecdsaPrivateKey struct {
-	privKey *ecdsa.PrivateKey
+	privKey    *ecdsa.PrivateKey
+	exportable bool
 }
 
 // Bytes converts this key to its byte representation,
 // if this operation is allowed.
-func (k *ecdsaPrivateKey) Bytes() (raw []byte, err error) {
-	return nil, errors.New("Not supported.")
+func (k *ecdsaPrivateKey) Bytes() ([]byte, error) {
+	if !k.exportable {
+		return nil, errors.New("not supported")
+	}
+
+	x509Encoded, err := x509.MarshalECPrivateKey(k.privKey)
+	if err != nil {
+		return nil, err
+	}
+	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
+
+	return pemEncoded, nil
 }
 
 // SKI returns the subject key identifier of this key.
-func (k *ecdsaPrivateKey) SKI() (ski []byte) {
+func (k *ecdsaPrivateKey) SKI() []byte {
 	if k.privKey == nil {
 		return nil
 	}
@@ -91,7 +100,7 @@ func (k *ecdsaPublicKey) Bytes() (raw []byte, err error) {
 }
 
 // SKI returns the subject key identifier of this key.
-func (k *ecdsaPublicKey) SKI() (ski []byte) {
+func (k *ecdsaPublicKey) SKI() []byte {
 	if k.pubKey == nil {
 		return nil
 	}

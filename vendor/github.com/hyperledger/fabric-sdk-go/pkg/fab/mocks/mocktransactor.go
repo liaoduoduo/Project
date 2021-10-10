@@ -10,8 +10,8 @@ import (
 	reqContex "context"
 	"net/http"
 
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
 
 // MockTransactor provides an implementation of Transactor that exposes all its context.
@@ -22,7 +22,7 @@ type MockTransactor struct {
 }
 
 // CreateTransactionHeader creates a Transaction Header based on the current context.
-func (t *MockTransactor) CreateTransactionHeader() (fab.TransactionHeader, error) {
+func (t *MockTransactor) CreateTransactionHeader(opts ...fab.TxnHeaderOpt) (fab.TransactionHeader, error) {
 	return &MockTransactionHeader{}, nil
 }
 

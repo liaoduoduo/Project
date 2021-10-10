@@ -12,8 +12,11 @@ import (
 	"encoding/pem"
 	"sync"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
 
 // MockPeer is a mock fabricsdk.Peer.
@@ -30,6 +33,9 @@ type MockPeer struct {
 	Status               int32
 	ProcessProposalCalls int
 	Endorser             []byte
+	ChaincodeID          string
+	RwSets               []*rwsetutil.NsRwSet
+	properties           fab.Properties
 }
 
 // NewMockPeer creates basic mock peer
@@ -58,14 +64,14 @@ func (p *MockPeer) SetMSPID(mspID string) {
 	p.MockMSP = mspID
 }
 
-// Roles returns the mock peer's mock roles
-func (p *MockPeer) Roles() []string {
-	return p.MockRoles
+// Properties returns the peer's properties
+func (p *MockPeer) Properties() fab.Properties {
+	return p.properties
 }
 
-// SetRoles sets the mock peer's mock roles
-func (p *MockPeer) SetRoles(roles []string) {
-	p.MockRoles = roles
+// SetProperties sets the peer's properties
+func (p *MockPeer) SetProperties(properties fab.Properties) {
+	p.properties = properties
 }
 
 // EnrollmentCertificate returns the mock peer's mock enrollment certificate
@@ -94,9 +100,89 @@ func (p *MockPeer) ProcessTransactionProposal(ctx reqContext.Context, tp fab.Pro
 	return &fab.TransactionProposalResponse{
 		Endorser: p.MockURL,
 		Status:   p.Status,
-		ProposalResponse: &pb.ProposalResponse{Response: &pb.Response{
-			Message: p.ResponseMessage, Status: p.Status, Payload: p.Payload},
-			Endorsement: &pb.Endorsement{Endorser: p.Endorser, Signature: []byte("signature")}},
+		ProposalResponse: &pb.ProposalResponse{
+			Response: &pb.Response{
+				Message: p.ResponseMessage,
+				Status:  p.Status,
+				Payload: p.Payload,
+			},
+			Endorsement: &pb.Endorsement{
+				Endorser:  p.Endorser,
+				Signature: []byte("signature"),
+			},
+			Payload: p.getProposalResponsePayload(),
+		},
 	}, p.Error
+}
 
+// SetChaincodeID sets the ID of the chaincode that was invoked. This ID will be
+// set in the ChaincodeAction of the proposal response payload.
+func (p *MockPeer) SetChaincodeID(ccID string) {
+	p.ChaincodeID = ccID
+}
+
+// SetRwSets sets the read-write sets that will be set in the proposal response payload
+func (p *MockPeer) SetRwSets(rwSets ...*rwsetutil.NsRwSet) {
+	p.RwSets = rwSets
+}
+
+// NewRwSet returns a new read-write set for the given chaincode
+func NewRwSet(ccID string) *rwsetutil.NsRwSet {
+	return &rwsetutil.NsRwSet{
+		NameSpace:        ccID,
+		KvRwSet:          &kvrwset.KVRWSet{},
+		CollHashedRwSets: nil,
+	}
+}
+
+func (p *MockPeer) getProposalResponsePayload() []byte {
+	if len(p.RwSets) == 0 && p.ChaincodeID != "" {
+		// Create one RWSet from the specified chaincode ID
+		p.SetRwSets(NewRwSet(p.ChaincodeID))
+	}
+
+	if p.ChaincodeID == "" && len(p.RwSets) > 0 {
+		// Set the chaincode ID to be that of the namespace of the first RWSet
+		p.ChaincodeID = p.RwSets[0].NameSpace
+	}
+
+	var err error
+	var resultBytes []byte
+	if len(p.RwSets) > 0 {
+		txRWSet := &rwsetutil.TxRwSet{
+			NsRwSets: p.RwSets,
+		}
+		resultBytes, err = txRWSet.ToProtoBytes()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	var chaincodeActionBytes []byte
+	if p.ChaincodeID != "" {
+		chaincodeAction := &pb.ChaincodeAction{
+			ChaincodeId: &pb.ChaincodeID{Name: p.ChaincodeID},
+			Events:      nil,
+			Response: &pb.Response{
+				Message: p.ResponseMessage,
+				Status:  p.Status,
+				Payload: p.Payload,
+			},
+			Results: resultBytes,
+		}
+		chaincodeActionBytes, err = proto.Marshal(chaincodeAction)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	prp := &pb.ProposalResponsePayload{
+		Extension: chaincodeActionBytes,
+	}
+	payloadBytes, err := proto.Marshal(prp)
+	if err != nil {
+		panic(err)
+	}
+
+	return payloadBytes
 }

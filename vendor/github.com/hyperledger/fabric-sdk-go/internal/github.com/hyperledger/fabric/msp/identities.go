@@ -1,17 +1,7 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
+Copyright IBM Corp. All Rights Reserved.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-		 http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+SPDX-License-Identifier: Apache-2.0
 */
 /*
 Notice: This file has been modified for Hyperledger Fabric SDK Go usage.
@@ -25,20 +15,23 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
-	"time"
 
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 
+	"encoding/pem"
+	"fmt"
+	"sync"
+	"time"
+
 	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric-protos-go/msp"
 	bccsp "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/cryptosuitebridge"
 	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
 	logging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 )
 
-var mspIdentityLogger = flogging.MustGetLogger("msp/identity")
+var mspIdentityLogger = flogging.MustGetLogger("msp.identity")
 
 type identity struct {
 	// id contains the identifier (MSPID and identity identifier) for this instance
@@ -52,6 +45,18 @@ type identity struct {
 
 	// reference to the MSP that "owns" this identity
 	msp *bccspmsp
+
+	// validationMutex is used to synchronise memory operation
+	// over validated and validationErr
+	validationMutex sync.Mutex
+
+	// validated is true when the validateIdentity function
+	// has been called on this instance
+	validated bool
+
+	// validationErr contains the validation error for this
+	// instance. It can be read if validated is true
+	validationErr error
 }
 
 func newIdentity(cert *x509.Certificate, pk core.Key, msp *bccspmsp) (Identity, error) {
@@ -90,7 +95,7 @@ func (id *identity) ExpiresAt() time.Time {
 	return id.cert.NotAfter
 }
 
-// SatisfiesPrincipal returns null if this instance matches the supplied principal or an error otherwise
+// SatisfiesPrincipal returns nil if this instance matches the supplied principal or an error otherwise
 func (id *identity) SatisfiesPrincipal(principal *msp.MSPPrincipal) error {
 	return id.msp.SatisfiesPrincipal(id, principal)
 }
@@ -105,9 +110,20 @@ func (id *identity) GetMSPIdentifier() string {
 	return id.id.Mspid
 }
 
-// IsValid returns nil if this instance is a valid identity or an error otherwise
+// Validate returns nil if this instance is a valid identity or an error otherwise
 func (id *identity) Validate() error {
 	return id.msp.Validate(id)
+}
+
+type OUIDs []*OUIdentifier
+
+func (o OUIDs) String() string {
+	var res []string
+	for _, id := range o {
+		res = append(res, fmt.Sprintf("%s(%X)", id.OrganizationalUnitIdentifier, id.CertifiersIdentifier[0:8]))
+	}
+
+	return fmt.Sprintf("%s", res)
 }
 
 // GetOrganizationalUnits returns the OU for this instance
@@ -123,7 +139,7 @@ func (id *identity) GetOrganizationalUnits() []*OUIdentifier {
 		return nil
 	}
 
-	res := []*OUIdentifier{}
+	var res []*OUIdentifier
 	for _, unit := range id.cert.Subject.OrganizationalUnit {
 		res = append(res, &OUIdentifier{
 			OrganizationalUnitIdentifier: unit,
@@ -134,6 +150,7 @@ func (id *identity) GetOrganizationalUnits() []*OUIdentifier {
 	return res
 }
 
+// Anonymous returns true if this identity provides anonymity
 func (id *identity) Anonymous() bool {
 	return false
 }
@@ -172,8 +189,6 @@ func (id *identity) Verify(msg []byte, sig []byte) error {
 
 // Serialize returns a byte array representation of this identity
 func (id *identity) Serialize() ([]byte, error) {
-	// mspIdentityLogger.Infof("Serializing identity %s", id.id)
-
 	pb := &pem.Block{Bytes: id.cert.Raw, Type: "CERTIFICATE"}
 	pemBytes := pem.EncodeToMemory(pb)
 	if pemBytes == nil {
@@ -214,7 +229,15 @@ func newSigningIdentity(cert *x509.Certificate, pk core.Key, signer crypto.Signe
 	if err != nil {
 		return nil, err
 	}
-	return &signingidentity{identity: *mspId.(*identity), signer: signer}, nil
+	return &signingidentity{
+		identity: identity{
+			id:   mspId.(*identity).id,
+			cert: mspId.(*identity).cert,
+			msp:  mspId.(*identity).msp,
+			pk:   mspId.(*identity).pk,
+		},
+		signer: signer,
+	}, nil
 }
 
 // Sign produces a signature over msg, signed by this instance
@@ -243,6 +266,8 @@ func (id *signingidentity) Sign(msg []byte) ([]byte, error) {
 	return id.signer.Sign(rand.Reader, digest, nil)
 }
 
+// GetPublicVersion returns the public version of this identity,
+// namely, the one that is only able to verify messages and not sign them
 func (id *signingidentity) GetPublicVersion() Identity {
 	return &id.identity
 }

@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package dispatcher
 
 import (
+	cb "github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	cb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 )
 
 // Event is an event that's sent to the dispatcher. This includes client registration
@@ -25,6 +25,20 @@ type RegisterEvent struct {
 // StopEvent tells the dispatcher to stop processing
 type StopEvent struct {
 	ErrCh chan<- error
+}
+
+// TransferEvent tells the dispatcher to transfer all
+// registrations into a snapshot
+type TransferEvent struct {
+	SnapshotCh chan<- fab.EventSnapshot
+	ErrCh      chan<- error
+}
+
+// StopAndTransferEvent tells the dispatcher to stop processing and transfer all
+// registrations into a snapshot
+type StopAndTransferEvent struct {
+	SnapshotCh chan<- fab.EventSnapshot
+	ErrCh      chan<- error
 }
 
 // RegisterBlockEvent registers for block events
@@ -56,7 +70,7 @@ type UnregisterEvent struct {
 	Reg fab.Registration
 }
 
-// RegistrationInfo contains a snapshot of the current event registrations
+// RegistrationInfo contains counts of the current event registrations
 type RegistrationInfo struct {
 	TotalRegistrations            int
 	NumBlockRegistrations         int
@@ -163,6 +177,22 @@ func NewTxStatusEvent(txID string, txValidationCode pb.TxValidationCode, blockNu
 func NewStopEvent(errch chan<- error) *StopEvent {
 	return &StopEvent{
 		ErrCh: errch,
+	}
+}
+
+// NewTransferEvent creates a new TransferEvent
+func NewTransferEvent(snapshotch chan<- fab.EventSnapshot, errch chan<- error) *TransferEvent {
+	return &TransferEvent{
+		ErrCh:      errch,
+		SnapshotCh: snapshotch,
+	}
+}
+
+// NewStopAndTransferEvent creates a new StopAndTransferEvent
+func NewStopAndTransferEvent(snapshotch chan<- fab.EventSnapshot, errch chan<- error) *StopAndTransferEvent {
+	return &StopAndTransferEvent{
+		ErrCh:      errch,
+		SnapshotCh: snapshotch,
 	}
 }
 
