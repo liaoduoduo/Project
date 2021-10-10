@@ -13,7 +13,7 @@ import (
 const (
 	configFile  = "config.yaml"
 	initialized = false
-	CC          = "lddcc"
+	CC          = "newlddcc"
 )
 
 func main() {
@@ -64,7 +64,7 @@ func main() {
 		EntityID:                "123",
 		FileHash:                "QmdKjne7dhQ99GxMZ5DqcN3FqYB2TrQN3a8hefFiouAC2a",
 		FileType:                "jpg",
-		Desc:                    "2021年7月，广东省广州市某小区公寓房内有多人聚众吸毒照片",
+		Desc:                    "2021年7月广东省广州市某小区公寓房内有多人聚众吸毒照片",
 		Company:                 "广州市花都区花山镇禁毒办",
 		PermissionsInfo:         "None",
 		MachineInfo:             "None",
