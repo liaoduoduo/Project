@@ -60,12 +60,26 @@ func main() {
 	}
 
 	file := service.Intelligence{
-		Name:     "廖多多",
-		EntityID: "123",
-		FileHash: "QmdKjne7dhQ99GxMZ5DqcN3FqYB2TrQN3a8hefFiouAC2a",
-		FileType: "jpg",
-		Desc:     "2021年7月，广东省广州市某小区公寓房内有多人聚众吸毒照片",
-		Company:  "广州市花都区花山镇禁毒办",
+		Name:                    "廖多越",
+		EntityID:                "123",
+		FileHash:                "QmdKjne7dhQ99GxMZ5DqcN3FqYB2TrQN3a8hefFiouAC2a",
+		FileType:                "jpg",
+		Desc:                    "2021年7月，广东省广州市某小区公寓房内有多人聚众吸毒照片",
+		Company:                 "广州市花都区花山镇禁毒办",
+		PermissionsInfo:         "N/A",
+		MachineInfo:             "N/A",
+		MergeInfo:               "N/A",
+		GradeInfo:               "N/A",
+		AllocationInfo:          "N/A",
+		SpecialItemInfo:         "N/A",
+		SpecialGroupInfo:        "N/A",
+		TaskEstablishAssignInfo: "N/A",
+		TaskReceivedInfo:        "N/A",
+		ResearchLogInfo:         "N/A",
+		ResultFeedbackInfo:      "N/A",
+		EvaluationInfo:          "N/A",
+		ReportInfo:              "N/A",
+		ResultAuditInfo:         "N/A",
 	}
 
 	msg, err := serviceSetup.SaveFile(file)
@@ -76,7 +90,7 @@ func main() {
 	}
 
 	// 根据证书编号与名称查询信息
-	result, err := serviceSetup.FindFileByIDAndName("123", "廖多多")
+	result, err := serviceSetup.FindFileByIDAndName("123", "廖多越")
 	if err != nil {
 		fmt.Println(err.Error())
 	} else {

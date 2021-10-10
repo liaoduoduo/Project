@@ -98,6 +98,21 @@ func (app *Application) AddFile(w http.ResponseWriter, r *http.Request) {
 		FileType: r.FormValue("FileType"),
 		Desc:     r.FormValue("Desc"),
 		Company:  r.FormValue("Company"),
+
+		PermissionsInfo:         r.FormValue("PermissionsInfo"),
+		MachineInfo:             r.FormValue("MachineInfo"),
+		MergeInfo:               r.FormValue("MergeInfo"),
+		GradeInfo:               r.FormValue("GradeInfo"),
+		AllocationInfo:          r.FormValue("AllocationInfo"),
+		SpecialItemInfo:         r.FormValue("SpecialItemInfo"),
+		SpecialGroupInfo:        r.FormValue("SpecialGroupInfo"),
+		TaskEstablishAssignInfo: r.FormValue("TaskEstablishAssignInfo"),
+		TaskReceivedInfo:        r.FormValue("TaskReceivedInfo"),
+		ResearchLogInfo:         r.FormValue("ResearchLogInfo"),
+		ResultFeedbackInfo:      r.FormValue("ResultFeedbackInfo"),
+		EvaluationInfo:          r.FormValue("EvaluationInfo"),
+		ReportInfo:              r.FormValue("ReportInfo"),
+		ResultAuditInfo:         r.FormValue("ResultAuditInfo"),
 	}
 
 	app.Setup.SaveFile(file)
@@ -205,6 +220,21 @@ func (app *Application) Modify(w http.ResponseWriter, r *http.Request) {
 		FileType: r.FormValue("FileType"),
 		Desc:     r.FormValue("Desc"),
 		Company:  r.FormValue("Company"),
+
+		PermissionsInfo:         r.FormValue("PermissionsInfo"),
+		MachineInfo:             r.FormValue("MachineInfo"),
+		MergeInfo:               r.FormValue("MergeInfo"),
+		GradeInfo:               r.FormValue("GradeInfo"),
+		AllocationInfo:          r.FormValue("AllocationInfo"),
+		SpecialItemInfo:         r.FormValue("SpecialItemInfo"),
+		SpecialGroupInfo:        r.FormValue("SpecialGroupInfo"),
+		TaskEstablishAssignInfo: r.FormValue("TaskEstablishAssignInfo"),
+		TaskReceivedInfo:        r.FormValue("TaskReceivedInfo"),
+		ResearchLogInfo:         r.FormValue("ResearchLogInfo"),
+		ResultFeedbackInfo:      r.FormValue("ResultFeedbackInfo"),
+		EvaluationInfo:          r.FormValue("EvaluationInfo"),
+		ReportInfo:              r.FormValue("ReportInfo"),
+		ResultAuditInfo:         r.FormValue("ResultAuditInfo"),
 	}
 
 	//transactionID, err := app.Setup.ModifyEdu(edu)

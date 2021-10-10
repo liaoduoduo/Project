@@ -198,6 +198,20 @@ func (t *IntelligenceChaincode) updateFile(stub shim.ChaincodeStubInterface, arg
 	result.FileType = info.FileType
 	result.Desc = info.Desc
 	result.Company = info.Company
+	result.PermissionsInfo = info.PermissionsInfo
+	result.MachineInfo = info.MachineInfo
+	result.MergeInfo = info.MergeInfo
+	result.GradeInfo = info.GradeInfo
+	result.AllocationInfo = info.AllocationInfo
+	result.SpecialItemInfo = info.SpecialItemInfo
+	result.SpecialGroupInfo = info.SpecialGroupInfo
+	result.TaskEstablishAssignInfo = info.TaskEstablishAssignInfo
+	result.TaskReceivedInfo = info.TaskReceivedInfo
+	result.ResearchLogInfo = info.ResearchLogInfo
+	result.ResultFeedbackInfo = info.ResultFeedbackInfo
+	result.EvaluationInfo = info.EvaluationInfo
+	result.ReportInfo = info.ReportInfo
+	result.ResultAuditInfo = info.ResultAuditInfo
 
 	_, bl = PutFile(stub, result)
 	if !bl {
